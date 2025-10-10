@@ -1,0 +1,87 @@
+// Declarative pipeline syntax with Build, Test, and Deploy stages
+
+pipeline {
+    agent any
+
+    environment {
+        NODE_ENV       = 'production'
+        AWS_REGION     = 'us-east-1'
+    }
+
+    options {
+        // This keep only the 10 most recent builds, discard older than 14 days
+        buildDiscarder(logRotator(daysToKeepStr: '14', numToKeepStr: '10'))
+
+        // This add timestamps to console output
+        timestamps()
+
+        // This don’t run this pipeline concurrently
+        disableConcurrentBuilds()
+    }
+
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh 'npm ci'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'npm run build'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'npm test'
+            }
+        }
+
+        stage('Deploy') {
+            // It only deploys when building the main branch
+            when {
+                branch 'main'
+            }
+            environment {
+                AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
+                AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+            }
+            steps {
+                dir('infra') {   // change working directory if necessary
+                    sh '''
+                      aws cloudformation deploy \
+                        --template-file template.yaml \
+                        --stack-name my-stack \
+                        --region $AWS_REGION
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline succeeded!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+            mail to: 'team@example.com',
+                 subject: "Build Failed in Jenkins: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: "See details at ${env.BUILD_URL}"
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

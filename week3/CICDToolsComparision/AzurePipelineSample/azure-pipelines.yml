@@ -1,0 +1,94 @@
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  NODE_ENV: 'production'
+  buildConfiguration: 'Release'
+
+stages:
+
+  - stage: Build
+    displayName: Build Stage
+    jobs:
+      - job: BuildJob
+        displayName: Build Job
+        pool:
+          vmImage: ubuntu-latest
+        workspace:
+          clean: all
+        steps:
+          - task: NodeTool@0
+            displayName: Install Node.js
+            inputs:
+              versionSpec: '14.x'
+
+          - script: |
+              npm install
+              npm run build -- --configuration $(buildConfiguration)
+            displayName: Install dependencies & build
+
+          - task: PublishBuildArtifacts@1
+            displayName: Publish build artifacts
+            inputs:
+              pathToPublish: 'dist'
+              artifactName: 'drop'
+              publishLocation: 'Container'
+
+  - stage: Test
+    displayName: Test Stage
+    dependsOn: Build
+    jobs:
+      - job: TestJob
+        displayName: Test Job
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: NodeTool@0
+            displayName: Install Node.js
+            inputs:
+              versionSpec: '14.x'
+
+          - script: |
+              npm install
+              npm test -- --reporter junit --reporter-options mochaFile=$(Build.SourcesDirectory)/reports/junit.xml
+            displayName: Run tests
+
+          - task: PublishTestResults@2
+            displayName: Publish test results
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: 'reports/junit.xml'
+              failTaskOnFailedTests: true
+
+  - stage: Deploy
+    displayName: Deploy Stage
+    dependsOn: Test
+    condition: succeeded()
+    jobs:
+      - deployment: DeployJob
+        displayName: Deploy to Azure Web App
+        environment: production
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  displayName: Download artifacts
+
+                - task: AzureWebApp@1
+                  displayName: Deploy to Web App
+                  inputs:
+                    azureSubscription: 'MyServiceConnection'
+                    appType: webAppLinux
+                    appName: 'my-app-service'
+                    package: '$(Pipeline.Workspace)/drop/**/*.zip'
