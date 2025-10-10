@@ -60,3 +60,12 @@ python -m unittest discover -s Unit_Test -p "test_*.py"
 docker pull dearjay22/prog8860-calculator:<tag>
 docker run -p 8080:8080 dearjay22/prog8860-calculator:<tag>
 ```
+
+**Example Output:**
+![alt text](image.png)
+![alt text](image-1.png)
+![alt text](image-2.png)
+![alt text](image-4.png)
+![alt text](image-5.png)
+![alt text](image-6.png)
+![alt text](image-7.png)
