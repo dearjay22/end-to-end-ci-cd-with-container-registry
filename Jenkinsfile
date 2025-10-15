@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     triggers {
-        // Optional: equivalent to GitHub 'on: push/pull_request'
+        on: push
         pollSCM('* * * * *') // Checks every minute — adjust as needed
     }
 
